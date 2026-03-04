@@ -48,7 +48,7 @@ export default async function MotoristasPage() {
     .from('users')
     .select('tenant_id')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!profile) redirect('/login')
 

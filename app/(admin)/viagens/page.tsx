@@ -24,6 +24,7 @@ import {
   Activity,
   CheckCircle,
   XCircle,
+  Plus,
 } from 'lucide-react'
 
 interface SearchParams {
@@ -49,7 +50,7 @@ export default async function ViagensPage({ searchParams }: PageProps) {
     .from('users')
     .select('tenant_id')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!profile) redirect('/login')
 
@@ -93,6 +94,12 @@ export default async function ViagensPage({ searchParams }: PageProps) {
           <h1 className="text-2xl font-bold text-slate-900">Viagens</h1>
           <p className="text-slate-500 mt-1">Acompanhe todas as viagens da frota</p>
         </div>
+        <Button asChild>
+          <Link href="/viagens/nova">
+            <Plus className="size-4" />
+            Nova Viagem
+          </Link>
+        </Button>
       </div>
 
       {/* Stats */}
@@ -266,7 +273,7 @@ export default async function ViagensPage({ searchParams }: PageProps) {
               <p className="text-sm text-slate-500 mb-4 max-w-xs">
                 {statusFilter !== 'todos'
                   ? `Não há viagens com status "${statusFilter}".`
-                  : 'As viagens são registradas pelos motoristas no aplicativo.'}
+                  : 'Nenhuma viagem registrada ainda. Clique em Nova Viagem para começar.'}
               </p>
               {statusFilter !== 'todos' && (
                 <Button variant="outline" asChild>

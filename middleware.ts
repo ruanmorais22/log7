@@ -82,7 +82,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Verificar trial do tenant
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/motorista')) {
+    if (pathname.startsWith('/dashboard') || pathname.startsWith('/motorista/')) {
       const { data: tenant } = await adminDb
         .from('tenants')
         .select('trial_expires_at, ativo, plano')
@@ -109,9 +109,10 @@ export async function middleware(request: NextRequest) {
     }
 
     // Redirecionar admin/supervisor tentando acessar painel motorista
+    // Nota: '/motorista/' (com barra) evita conflito com '/motoristas' (admin)
     if (
       profile.role !== 'motorista' &&
-      pathname.startsWith('/motorista')
+      pathname.startsWith('/motorista/')
     ) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
