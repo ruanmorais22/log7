@@ -65,6 +65,16 @@ export async function middleware(request: NextRequest) {
     tenantId = profile.tenant_id
   }
 
+  // super_admin: acesso irrestrito, redireciona para /super-admin
+  if (role === 'super_admin') {
+    if (pathname === '/login' || pathname === '/register') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/super-admin'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
   // Autenticado acessando telas de auth → redirecionar para painel correto
   if (pathname === '/login' || pathname === '/register') {
     const url = request.nextUrl.clone()
