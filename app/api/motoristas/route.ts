@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       password: authPassword,
       email_confirm: true,
       user_metadata: { nome, role: 'motorista' },
+      app_metadata: { role: 'motorista', tenant_id: profile.tenant_id },
     })
 
     if (createError) {

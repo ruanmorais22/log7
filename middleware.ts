@@ -4,7 +4,6 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
-  // Client com anon key — apenas para verificar a sessão do usuário
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,55 +23,37 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Client com service role — ignora RLS para queries de perfil/tenant
-  const adminDb = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() { return [] },
-        setAll() {},
-      },
-    }
-  )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Rotas públicas
   const publicRoutes = ['/login', '/register', '/auth/callback', '/trial-expirado']
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
 
-  // Não autenticado tentando acessar rota protegida
+  // Não autenticado → login
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Autenticado tentando acessar rotas de auth → redirecionar para painel correto
-  if (user && (pathname === '/login' || pathname === '/register')) {
-    const { data: profile } = await adminDb
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+  if (!user) return supabaseResponse
 
-    const url = request.nextUrl.clone()
-    url.pathname = profile?.role === 'motorista' ? '/motorista/home' : '/dashboard'
-    return NextResponse.redirect(url)
-  }
+  // Usuário autenticado: ler role do JWT (app_metadata) — zero DB calls na maioria dos casos
+  let role = user.app_metadata?.role as string | undefined
+  let tenantId = user.app_metadata?.tenant_id as string | undefined
 
-  // Verificar acesso correto por role em rotas protegidas
-  if (user && !isPublicRoute) {
+  // Fallback: consultar DB apenas se app_metadata não tiver o role (usuários antigos)
+  if (!role && !isPublicRoute) {
+    const adminDb = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { cookies: { getAll() { return [] }, setAll() {} } }
+    )
     const { data: profile } = await adminDb
       .from('users')
       .select('role, tenant_id, ativo')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (!profile || !profile.ativo) {
       await supabase.auth.signOut()
@@ -80,20 +61,34 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
+    role = profile.role
+    tenantId = profile.tenant_id
+  }
 
-    // Verificar trial do tenant
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/motorista/')) {
+  // Autenticado acessando telas de auth → redirecionar para painel correto
+  if (pathname === '/login' || pathname === '/register') {
+    const url = request.nextUrl.clone()
+    url.pathname = role === 'motorista' ? '/motorista/home' : '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
+  if (!isPublicRoute && role) {
+    // Verificar trial do tenant nas rotas de painel
+    if (tenantId && (pathname.startsWith('/dashboard') || pathname.startsWith('/motorista/'))) {
+      const adminDb = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { cookies: { getAll() { return [] }, setAll() {} } }
+      )
       const { data: tenant } = await adminDb
         .from('tenants')
-        .select('trial_expires_at, ativo, plano')
-        .eq('id', profile.tenant_id)
-        .single()
+        .select('trial_expires_at, ativo')
+        .eq('id', tenantId)
+        .maybeSingle()
 
       if (tenant) {
-        const trialExpired =
-          !tenant.ativo || new Date(tenant.trial_expires_at) < new Date()
-
-        if (trialExpired && pathname !== '/trial-expirado') {
+        const trialExpired = !tenant.ativo || new Date(tenant.trial_expires_at) < new Date()
+        if (trialExpired) {
           const url = request.nextUrl.clone()
           url.pathname = '/trial-expirado'
           return NextResponse.redirect(url)
@@ -101,19 +96,16 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Redirecionar motorista tentando acessar painel admin
-    if (profile.role === 'motorista' && pathname.startsWith('/dashboard')) {
+    // Motorista tentando acessar painel admin
+    const adminRoutes = ['/dashboard', '/motoristas', '/veiculos', '/viagens', '/financeiro', '/manutencoes', '/configuracoes']
+    if (role === 'motorista' && adminRoutes.some((r) => pathname.startsWith(r))) {
       const url = request.nextUrl.clone()
       url.pathname = '/motorista/home'
       return NextResponse.redirect(url)
     }
 
-    // Redirecionar admin/supervisor tentando acessar painel motorista
-    // Nota: '/motorista/' (com barra) evita conflito com '/motoristas' (admin)
-    if (
-      profile.role !== 'motorista' &&
-      pathname.startsWith('/motorista/')
-    ) {
+    // Admin tentando acessar painel motorista
+    if (role !== 'motorista' && pathname.startsWith('/motorista/')) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
