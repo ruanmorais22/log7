@@ -12,12 +12,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
-    // Get tenant_id and check role
     const { data: profile } = await supabase
       .from('users')
       .select('tenant_id, role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (!profile || profile.role === 'motorista') {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
@@ -33,7 +32,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check plan limits
+    // Verificar limite do plano
     const { data: limites } = await supabase.rpc('verificar_limite_plano', {
       p_tenant_id: profile.tenant_id,
     })
@@ -41,61 +40,73 @@ export async function POST(request: NextRequest) {
     const limite = limites as { motoristas_pode_adicionar: boolean; motoristas_limite: number; motoristas_atual: number }
     if (limite && !limite.motoristas_pode_adicionar) {
       return NextResponse.json(
-        {
-          error: `Limite do plano atingido. Você tem ${limite.motoristas_atual}/${limite.motoristas_limite} motoristas.`,
-        },
+        { error: `Limite do plano atingido (${limite.motoristas_atual}/${limite.motoristas_limite} motoristas).` },
         { status: 403 }
       )
     }
 
     const adminClient = createAdminClient()
-    const { nome, email, cpf, cnh_numero, cnh_categoria, cnh_validade, telefone, status } = parsed.data
+    const { nome, cpf, cnh_numero, cnh_categoria, cnh_validade, telefone, status } = parsed.data
 
-    // Invite user via Supabase Admin
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-      email,
-      {
-        data: {
-          nome,
-          tenant_id: profile.tenant_id,
-          role: 'motorista',
-        },
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback?next=/motorista/home`,
-      }
-    )
+    // Gerar email interno e senha genérica a partir do telefone
+    const cleanPhone = (telefone ?? '').replace(/\D/g, '')
+    const authEmail = `${cleanPhone}@motorista.fretelog`
+    const authPassword = `Frete@${cleanPhone.slice(-4)}`
 
-    if (inviteError) {
-      // If user already exists, just create/update the profile
-      if (!inviteError.message.includes('already registered')) {
-        return NextResponse.json({ error: inviteError.message }, { status: 400 })
+    // Criar usuário sem confirmação de e-mail
+    const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+      email: authEmail,
+      password: authPassword,
+      email_confirm: true,
+      user_metadata: { nome, role: 'motorista' },
+    })
+
+    if (createError) {
+      const msg = createError.message.toLowerCase()
+      if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('duplicate')) {
+        return NextResponse.json(
+          { error: 'Já existe um motorista cadastrado com este telefone.' },
+          { status: 400 }
+        )
       }
+      return NextResponse.json({ error: createError.message }, { status: 400 })
     }
 
-    // Create or update user profile
-    const userId = inviteData?.user?.id
-    if (userId) {
-      const { error: profileError } = await adminClient
-        .from('users')
-        .upsert({
-          id: userId,
-          tenant_id: profile.tenant_id,
-          nome,
-          email,
-          role: 'motorista',
-          cpf: cpf || null,
-          cnh_numero: cnh_numero || null,
-          cnh_categoria: cnh_categoria || null,
-          cnh_validade: cnh_validade || null,
-          telefone: telefone || null,
-          status: status || 'ativo',
-        })
-
-      if (profileError) {
-        return NextResponse.json({ error: profileError.message }, { status: 500 })
-      }
+    if (!newUser.user) {
+      return NextResponse.json({ error: 'Erro ao criar acesso do motorista' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, message: 'Convite enviado ao motorista' })
+    // Criar perfil na tabela users
+    const { error: profileError } = await adminClient
+      .from('users')
+      .insert({
+        id: newUser.user.id,
+        tenant_id: profile.tenant_id,
+        nome,
+        email: authEmail,
+        role: 'motorista',
+        cpf: cpf || null,
+        cnh_numero: cnh_numero || null,
+        cnh_categoria: cnh_categoria || null,
+        cnh_validade: cnh_validade || null,
+        telefone: cleanPhone,
+        status: status || 'ativo',
+        ativo: true,
+      })
+
+    if (profileError) {
+      // Desfazer criação do auth user se o perfil falhar
+      await adminClient.auth.admin.deleteUser(newUser.user.id)
+      return NextResponse.json({ error: profileError.message }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      credentials: {
+        telefone: cleanPhone,
+        senha: authPassword,
+      },
+    })
   } catch (error) {
     console.error('Erro ao criar motorista:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })

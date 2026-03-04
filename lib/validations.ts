@@ -9,18 +9,23 @@ export const registerSchema = z.object({
 })
 
 export const loginSchema = z.object({
-  email: z.string().email('E-mail inválido'),
+  // Aceita e-mail ou telefone (motoristas usam telefone como login)
+  email: z.string().min(1, 'Informe seu e-mail ou telefone'),
   password: z.string().min(1, 'Senha obrigatória'),
 })
 
 export const motoristaSchema = z.object({
   nome: z.string().min(2, 'Nome obrigatório'),
-  email: z.string().email('E-mail inválido'),
+  // Telefone é o identificador de login do motorista (obrigatório)
+  telefone: z.string().min(1, 'Telefone obrigatório').refine(
+    (v) => v.replace(/\D/g, '').length >= 10,
+    'Informe o telefone com DDD (mín. 10 dígitos)'
+  ),
+  email: z.string().optional(),
   cpf: z.string().optional(),
   cnh_numero: z.string().optional(),
   cnh_categoria: z.string().optional(),
   cnh_validade: z.string().optional(),
-  telefone: z.string().optional(),
   status: z.enum(['ativo', 'inativo', 'ferias', 'afastado']).default('ativo'),
 })
 

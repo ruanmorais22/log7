@@ -32,19 +32,24 @@ import {
 } from '@/components/ui/select'
 import { motoristaSchema, type MotoristaInput } from '@/lib/validations'
 import { CATEGORIAS_CNH } from '@/lib/constants'
-import { ArrowLeft, Loader2, Mail, UserPlus, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Smartphone, UserPlus, Copy, Check, Users } from 'lucide-react'
+
+interface Credentials {
+  telefone: string
+  senha: string
+}
 
 export default function NovoMotoristaPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const [credentials, setCredentials] = useState<Credentials | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const form = useForm<MotoristaInput>({
     resolver: zodResolver(motoristaSchema),
     defaultValues: {
       nome: '',
-      email: '',
       cpf: '',
       cnh_numero: '',
       cnh_categoria: '',
@@ -71,11 +76,7 @@ export default function NovoMotoristaPage() {
         return
       }
 
-      setSuccess(true)
-      setTimeout(() => {
-        router.push('/motoristas')
-        router.refresh()
-      }, 2000)
+      setCredentials(json.credentials)
     } catch {
       setError('Erro de conexão. Verifique sua internet e tente novamente.')
     } finally {
@@ -83,17 +84,84 @@ export default function NovoMotoristaPage() {
     }
   }
 
-  if (success) {
+  function copyCredentials() {
+    if (!credentials) return
+    const text = `FreteLog — Acesso do motorista\nTelefone: ${credentials.telefone}\nSenha: ${credentials.senha}`
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  // Tela de sucesso com credenciais
+  if (credentials) {
     return (
-      <div className="max-w-lg mx-auto py-12 text-center space-y-4">
-        <div className="bg-emerald-100 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto">
-          <CheckCircle className="size-8 text-emerald-600" />
+      <div className="max-w-lg mx-auto py-8 space-y-6">
+        <div className="text-center space-y-3">
+          <div className="bg-emerald-100 rounded-full p-4 w-16 h-16 flex items-center justify-center mx-auto">
+            <Smartphone className="size-8 text-emerald-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-slate-900">Motorista cadastrado!</h2>
+          <p className="text-slate-500 text-sm">
+            Compartilhe as credenciais abaixo com o motorista via WhatsApp ou pessoalmente.
+          </p>
         </div>
-        <h2 className="text-xl font-semibold text-slate-900">Convite enviado!</h2>
-        <p className="text-slate-500">
-          O motorista receberá um e-mail para definir sua senha e acessar o sistema.
-        </p>
-        <p className="text-sm text-slate-400">Redirecionando para a lista...</p>
+
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-orange-800">Credenciais de acesso</CardTitle>
+            <CardDescription className="text-orange-600 text-xs">
+              O motorista usa o telefone como login e essa senha para entrar no app.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-lg p-3 border border-orange-200">
+                <p className="text-xs text-slate-500 mb-1">Telefone (login)</p>
+                <p className="font-bold text-slate-800 font-mono text-lg tracking-wide">
+                  {credentials.telefone}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-orange-200">
+                <p className="text-xs text-slate-500 mb-1">Senha</p>
+                <p className="font-bold text-slate-800 font-mono text-lg tracking-wide">
+                  {credentials.senha}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={copyCredentials}
+              variant="outline"
+              className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
+            >
+              {copied ? (
+                <><Check className="size-4 mr-2 text-emerald-600" />Copiado!</>
+              ) : (
+                <><Copy className="size-4 mr-2" />Copiar para enviar no WhatsApp</>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              setCredentials(null)
+              form.reset()
+            }}
+          >
+            <UserPlus className="size-4 mr-2" />
+            Cadastrar outro
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={() => router.push('/motoristas')}
+          >
+            <Users className="size-4 mr-2" />
+            Ver lista
+          </Button>
+        </div>
       </div>
     )
   }
@@ -102,7 +170,7 @@ export default function NovoMotoristaPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon-sm" asChild>
+        <Button variant="ghost" size="icon" asChild>
           <Link href="/motoristas">
             <ArrowLeft className="size-4" />
           </Link>
@@ -118,9 +186,10 @@ export default function NovoMotoristaPage() {
       {/* Info card */}
       <Card className="border-blue-200 bg-blue-50">
         <CardContent className="p-4 flex items-start gap-3">
-          <Mail className="size-4 text-blue-500 shrink-0 mt-0.5" />
+          <Smartphone className="size-4 text-blue-500 shrink-0 mt-0.5" />
           <p className="text-sm text-blue-700">
-            O motorista receberá um e-mail de convite para criar sua senha e acessar o aplicativo.
+            O acesso é criado automaticamente com o <strong>telefone</strong> e uma senha simples.
+            Nenhum e-mail é enviado — você compartilha as credenciais diretamente com o motorista.
           </p>
         </CardContent>
       </Card>
@@ -150,19 +219,15 @@ export default function NovoMotoristaPage() {
                 />
                 <FormField
                   control={form.control}
-                  name="email"
+                  name="telefone"
                   render={({ field }) => (
                     <FormItem className="sm:col-span-2">
-                      <FormLabel>E-mail *</FormLabel>
+                      <FormLabel>Telefone / WhatsApp *</FormLabel>
                       <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="motorista@exemplo.com"
-                          {...field}
-                        />
+                        <Input placeholder="(11) 99999-9999" {...field} />
                       </FormControl>
                       <FormDescription>
-                        O convite de acesso será enviado para este e-mail.
+                        Este número será o login do motorista no aplicativo.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -176,19 +241,6 @@ export default function NovoMotoristaPage() {
                       <FormLabel>CPF</FormLabel>
                       <FormControl>
                         <Input placeholder="000.000.000-00" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="telefone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Telefone / WhatsApp</FormLabel>
-                      <FormControl>
-                        <Input placeholder="(11) 99999-9999" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -306,16 +358,16 @@ export default function NovoMotoristaPage() {
             <Button type="button" variant="outline" asChild>
               <Link href="/motoristas">Cancelar</Link>
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white">
               {loading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Enviando convite...
+                  Criando acesso...
                 </>
               ) : (
                 <>
                   <UserPlus className="size-4" />
-                  Cadastrar e enviar convite
+                  Cadastrar motorista
                 </>
               )}
             </Button>

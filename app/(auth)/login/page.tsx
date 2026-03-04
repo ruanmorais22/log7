@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Truck } from 'lucide-react'
@@ -14,8 +13,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+// Converte telefone para email interno de motoristas
+function phoneToEmail(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  return `${digits}@motorista.fretelog`
+}
+
+function isPhoneNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, '')
+  return digits.length >= 10 && digits.length <= 11 && /^\d+$/.test(digits)
+}
+
 export default function LoginPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
@@ -26,16 +35,20 @@ export default function LoginPage() {
   async function onSubmit(data: LoginInput) {
     setLoading(true)
     try {
+      // Motoristas fazem login com telefone → converte para e-mail interno
+      const emailToUse = isPhoneNumber(data.email)
+        ? phoneToEmail(data.email)
+        : data.email
+
       const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
+        email: emailToUse,
         password: data.password,
       })
       if (error || !authData.user) {
-        toast.error('Credenciais inválidas. Verifique seu e-mail e senha.')
+        toast.error('Credenciais inválidas. Verifique seu telefone/e-mail e senha.')
         return
       }
 
-      // Buscar role para redirecionar diretamente para o painel correto
       const { data: profile } = await supabase
         .from('users')
         .select('role')
@@ -66,17 +79,17 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle className="text-white text-xl">Entrar na conta</CardTitle>
             <CardDescription className="text-slate-400">
-              Acesse o painel da sua transportadora
+              Gestores: use seu e-mail. Motoristas: use seu telefone.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-200">E-mail</Label>
+                <Label htmlFor="email" className="text-slate-200">E-mail ou Telefone</Label>
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="seu@email.com"
+                  type="text"
+                  placeholder="email@empresa.com ou (11) 99999-9999"
                   className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
                   {...register('email')}
                 />
