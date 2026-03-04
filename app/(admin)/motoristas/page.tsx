@@ -110,7 +110,7 @@ export default async function MotoristasPage() {
               )}
             </div>
             <Button size="sm" variant="outline" asChild>
-              <Link href="/configuracoes/plano">Ver planos</Link>
+              <Link href="/configuracoes">Ver planos</Link>
             </Button>
           </CardContent>
         </Card>

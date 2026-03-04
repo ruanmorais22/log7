@@ -71,3 +71,41 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }
+
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('tenant_id, role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile || profile.role === 'motorista') {
+      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ ativo: false, status: 'inativo' })
+      .eq('id', id)
+      .eq('tenant_id', profile.tenant_id)
+      .eq('role', 'motorista')
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Erro ao desativar motorista:', error)
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
+  }
+}
