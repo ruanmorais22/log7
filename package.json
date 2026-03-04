@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "ls -R .next",
     "start": "next start",
     "lint": "eslint"
   },
