@@ -70,8 +70,7 @@ export default function RegisterPage() {
       }
 
       toast.success('Conta criada! Seu trial de 14 dias começou.')
-      router.push('/dashboard')
-      router.refresh()
+      window.location.href = '/dashboard'
     } catch {
       toast.error('Erro ao criar conta. Tente novamente.')
     } finally {

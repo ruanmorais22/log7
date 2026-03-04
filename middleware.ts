@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  // Client com anon key — apenas para verificar a sessão do usuário
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,6 +20,18 @@ export async function middleware(request: NextRequest) {
             supabaseResponse.cookies.set(name, value, options)
           )
         },
+      },
+    }
+  )
+
+  // Client com service role — ignora RLS para queries de perfil/tenant
+  const adminDb = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() { return [] },
+        setAll() {},
       },
     }
   )
@@ -40,11 +53,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Autenticado tentando acessar rotas de auth → redirecionar
+  // Autenticado tentando acessar rotas de auth → redirecionar para painel correto
   if (user && (pathname === '/login' || pathname === '/register')) {
-    const { data: profile } = await supabase
+    const { data: profile } = await adminDb
       .from('users')
-      .select('role, tenant_id')
+      .select('role')
       .eq('id', user.id)
       .single()
 
@@ -53,9 +66,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Verificar acesso correto por role
+  // Verificar acesso correto por role em rotas protegidas
   if (user && !isPublicRoute) {
-    const { data: profile } = await supabase
+    const { data: profile } = await adminDb
       .from('users')
       .select('role, tenant_id, ativo')
       .eq('id', user.id)
@@ -70,7 +83,7 @@ export async function middleware(request: NextRequest) {
 
     // Verificar trial do tenant
     if (pathname.startsWith('/dashboard') || pathname.startsWith('/motorista')) {
-      const { data: tenant } = await supabase
+      const { data: tenant } = await adminDb
         .from('tenants')
         .select('trial_expires_at, ativo, plano')
         .eq('id', profile.tenant_id)
