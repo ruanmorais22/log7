@@ -1,7 +1,10 @@
 -- Migration: Adiciona role super_admin (dono do SaaS)
 -- O super_admin pode ver todos os tenants, gerenciar planos e acessar qualquer dado.
 
--- 1. Adicionar super_admin ao enum de roles
+-- 1. Tornar tenant_id nullable em users (super_admin não pertence a nenhum tenant)
+ALTER TABLE public.users ALTER COLUMN tenant_id DROP NOT NULL;
+
+-- 2. Adicionar super_admin ao enum de roles
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'super_admin';
 
 -- 2. Atualizar RLS: super_admin pode ver TUDO em todas as tabelas
