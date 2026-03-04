@@ -26,16 +26,24 @@ export default function LoginPage() {
   async function onSubmit(data: LoginInput) {
     setLoading(true)
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       })
-      if (error) {
+      if (error || !authData.user) {
         toast.error('Credenciais inválidas. Verifique seu e-mail e senha.')
         return
       }
-      router.push('/')
-      router.refresh()
+
+      // Buscar role para redirecionar diretamente para o painel correto
+      const { data: profile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', authData.user.id)
+        .single()
+
+      const destino = profile?.role === 'motorista' ? '/motorista/home' : '/dashboard'
+      window.location.href = destino
     } catch {
       toast.error('Erro ao fazer login. Tente novamente.')
     } finally {
