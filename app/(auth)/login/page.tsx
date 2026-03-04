@@ -40,7 +40,7 @@ export default function LoginPage() {
         .from('users')
         .select('role')
         .eq('id', authData.user.id)
-        .single()
+        .maybeSingle()
 
       const destino = profile?.role === 'motorista' ? '/motorista/home' : '/dashboard'
       window.location.href = destino

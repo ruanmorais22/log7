@@ -13,7 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .from('users')
     .select('nome, tenant_id, role, tenants(nome, trial_expires_at, ativo)')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!profile) redirect('/login')
   if (profile.role === 'motorista') redirect('/motorista/home')

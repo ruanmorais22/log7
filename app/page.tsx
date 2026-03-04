@@ -13,7 +13,7 @@ export default async function HomePage() {
     .from('users')
     .select('role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (profile?.role === 'motorista') {
     redirect('/motorista/home')

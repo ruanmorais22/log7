@@ -13,7 +13,7 @@ export default async function MotoristaLayout({ children }: { children: React.Re
     .from('users')
     .select('nome, role, tenant_id, tenants(trial_expires_at, ativo)')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!profile) redirect('/login')
   if (profile.role !== 'motorista') redirect('/dashboard')
